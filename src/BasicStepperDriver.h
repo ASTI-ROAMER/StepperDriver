@@ -97,7 +97,7 @@ protected:
     // DIR pin state
     short dir_state;
 
-    void calcStepPulse(void);
+    virtual void calcStepPulse(void);
 
     // this is internal because one can call the start methods while CRUISING to get here
     void alterMove(long steps);
