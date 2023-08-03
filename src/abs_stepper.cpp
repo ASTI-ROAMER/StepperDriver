@@ -73,7 +73,7 @@ uint8_t AbsStepper::startAbsMove1(long abs_dstep, long time){
 
 
 uint8_t AbsStepper::startAbsRotate_(double ddeg, long time, uint8_t exec_on_soft_limit){
-    return startAbsMove_(long(ddeg*step_per_deg), time, exec_on_soft_limit);
+    return startAbsMove_((long) (ddeg*step_per_deg), time, exec_on_soft_limit);
 }
 
 uint8_t AbsStepper::startAbsRotate(double ddeg, long time){

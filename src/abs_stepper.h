@@ -72,6 +72,8 @@ public:
     // Getters
     const long& getAbsCurStep() const {return _abs_cstep;}
     const double& getAbsCurDeg() const {return _abs_cstep * deg_per_step;}
+
+    const double& getStepPerDeg() const {return step_per_deg;}
     
 };
 #endif // ABS_STEPPER_H
