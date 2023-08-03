@@ -6,10 +6,13 @@
 class AbsStepper : public DRV8825 {
 protected:
     long _abs_cstep;                        // current step on absolute counts
-    const double deg_per_step;              // initialize upon class construction (initialization list)
-    const double step_per_deg;
+    double deg_per_step;              // initialize upon class construction (initialization list)
+    double step_per_deg;
     uint8_t use_soft_limits=FALSE;          // whether we use _min_astep/_max_astep to limit steps
     long _min_astep, _max_astep;            // software absolute step count limit (soft limits)
+
+    double joint2stepper_ratio = 1.0;          
+    double stepper2joint_ratio = 1.0;
 
     void calcStepPulse(void) override;      // extend this so we can have absolute position
 
@@ -37,7 +40,8 @@ public:
     // Resets position WITHOUT MOVING
     // void setCurPosAsAbsStep();
     void setCurPosAsAbsStep(long abs_step);       // Sets abs_cstep to given number, default 0
-    void setCurPosAsAbsDeg(double getAbsCurDeg);
+    void setCurPosAsAbsDeg(double abs_deg);
+    void setCurPosAsJointDeg(double jdeg);
 
     // absolute movement (non-blocking)
     // By step count:
@@ -46,20 +50,40 @@ public:
     // --exec_on_soft_limit==FALSE: if the desired step exceeds the limit, will NOT MOVE the motor
     uint8_t startAbsMove_(long abs_dstep, long time=0, uint8_t exec_on_soft_limit=FALSE);
     // Convinience methods
-    uint8_t startAbsMove(long abs_dstep, long time=0);          // startAbsMove_ with exec_on_soft_limit=FALSE
-    uint8_t startAbsMove0(long abs_dstep, long time=0);         // startAbsMove_ with exec_on_soft_limit=FALSE
-    uint8_t startAbsMove1(long abs_dstep, long time=0);         // startAbsMove_ with exec_on_soft_limit=TRUE
+    uint8_t startAbsMove(long abs_dstep, long time=0);          // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startAbsMove0(long abs_dstep, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startAbsMove1(long abs_dstep, long time=0);         // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
 
     // By degrees:
     uint8_t startAbsRotate_(double ddeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
+    // Convinience methods
     uint8_t startAbsRotate(double ddeg, long time=0);           // startAbsRotate_ with exec_on_soft_limit=FALSE
     uint8_t startAbsRotate0(double ddeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=FALSE
     uint8_t startAbsRotate1(double ddeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=TRUE
+
+    // By joint degrees:
+    uint8_t startJointRotate_(double jdeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
+    // Convinience methods
+    uint8_t startJointRotate(double jdeg, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startJointRotate0(double jdeg, long time=0);        // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startJointRotate1(double jdeg, long time=0);        // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
 
 
     // setup absolute step/angle software limits, use_soft_limits_=TRUE will enforce the limits
     void setAbsStepSoftLimits(long min, long max, uint8_t use_soft_limits_=TRUE);
     void setAbsDegSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
+    void setJointSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
+
+    // joint interface - joints may be geared, this takes care of that
+    // Calculates and sets gearing ratio given a set movement of the stepper motor WRT the joint.
+    // -- joint angle / stepper angle
+    void setJoint2StepperRatio(double s_moved_angle, double j_moved_angle);
+
+
+
+    // convertion functions
+    // convert joint angle to absolute stepper angle
+    double convertJdeg2Adeg(double jdeg){return jdeg * stepper2joint_ratio;}
 
 
 
@@ -69,11 +93,16 @@ public:
 
     // long nextAction(void);
 
-    // Getters
-    const long& getAbsCurStep() const {return _abs_cstep;}
-    const double& getAbsCurDeg() const {return _abs_cstep * deg_per_step;}
 
+    // Getters and convinences
+    const long& getAbsCurStep() const {return _abs_cstep;}          //so that _abs_cstep will not be modified
     const double& getStepPerDeg() const {return step_per_deg;}
+    const double& getDegPerStep() const {return deg_per_step;}
+
+    double getAbsCurDeg() const {return _abs_cstep * deg_per_step;}
+    double getJointCurDeg() const {return _abs_cstep * deg_per_step * joint2stepper_ratio;}
+
+    
     
 };
 #endif // ABS_STEPPER_H

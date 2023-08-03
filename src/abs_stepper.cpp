@@ -15,9 +15,14 @@ void AbsStepper::setCurPosAsAbsStep(long abs_step){
     
 }
 
-void AbsStepper::setCurPosAsAbsDeg(double getAbsCurDeg){
-    setCurPosAsAbsStep(long(getAbsCurDeg * step_per_deg));
+void AbsStepper::setCurPosAsAbsDeg(double abs_deg){
+    setCurPosAsAbsStep(long(abs_deg * step_per_deg));
 }
+
+void AbsStepper::setCurPosAsJointDeg(double jdeg){
+    setCurPosAsAbsStep(long(jdeg * stepper2joint_ratio * step_per_deg));
+}
+
 
 
 // Update absolut current step count when updating [step_count]
@@ -89,6 +94,24 @@ uint8_t AbsStepper::startAbsRotate1(double ddeg, long time){
 }
 
 
+uint8_t AbsStepper::startJointRotate_(double jdeg, long time, uint8_t exec_on_soft_limit){
+    return startAbsRotate_(jdeg*stepper2joint_ratio, time, exec_on_soft_limit);
+}
+
+uint8_t AbsStepper::startJointRotate(double jdeg, long time){
+    return startJointRotate_(jdeg, time, FALSE);
+}
+uint8_t AbsStepper::startJointRotate0(double jdeg, long time){
+    return startJointRotate_(jdeg, time, FALSE);
+}
+
+uint8_t AbsStepper::startJointRotate1(double jdeg, long time){
+    return startJointRotate_(jdeg, time, TRUE);
+}
+
+
+
+
 // Setup limits
 void AbsStepper::setAbsStepSoftLimits(long min, long max, uint8_t use_soft_limits_){
     _min_astep = min;
@@ -98,6 +121,17 @@ void AbsStepper::setAbsStepSoftLimits(long min, long max, uint8_t use_soft_limit
 
 void AbsStepper::setAbsDegSoftLimits(double min, double max, uint8_t use_soft_limits_){
     setAbsStepSoftLimits(long(min * step_per_deg), long(max * step_per_deg), use_soft_limits_);
+}
+
+void AbsStepper::setJointSoftLimits(double min, double max, uint8_t use_soft_limits_){
+    setAbsStepSoftLimits(long(min * stepper2joint_ratio * step_per_deg), long(max * stepper2joint_ratio * step_per_deg), use_soft_limits_);
+}
+
+
+
+void AbsStepper::setJoint2StepperRatio(double s_moved_angle, double j_moved_angle){
+    joint2stepper_ratio = j_moved_angle/s_moved_angle;
+    stepper2joint_ratio = s_moved_angle/j_moved_angle;
 }
 
 // long AbsStepper::nextAction(void){
