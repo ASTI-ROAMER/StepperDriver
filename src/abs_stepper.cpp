@@ -2,6 +2,43 @@
 #include "abs_stepper.h"
 
 
+void AbsStepper::setLimitSWPin(short limit_pin_, short active_state, LimitSWMethod method){
+    limit_sw_pin = limit_pin_;
+    limit_sw_active_state = active_state;
+    
+    pinMode(limit_pin_, INPUT_PULLUP);
+
+    // if(method == POLL){
+
+    // }
+}
+
+void AbsStepper::setLimitSWAbsStep(long a_step){
+    limit_sw_reset_astep = a_step;
+}
+
+void AbsStepper::setLimitSWAbsDeg(double ddeg){
+    limit_sw_reset_astep = ddeg * step_per_deg;
+}
+
+void AbsStepper::setLimitSWJointDeg(double jdeg){
+    limit_sw_reset_astep = jdeg * stepper2joint_ratio * step_per_deg;
+}
+
+
+long AbsStepper::limitActivatedCB1(){
+    long retval=stop();
+    
+    // Set current position to set value
+    // _abs_cstep = limit_sw_reset_astep;
+    setCurPosAsAbsStep(limit_sw_reset_astep);
+    Serial.println("stop: " + String(_abs_cstep));
+
+    return retval;
+}
+
+
+
 
 // void AbsStepper::setCurPosAsAbsStep(){
 //     AbsStepper::setCurPosAsAbsStep(long(0));
@@ -25,13 +62,45 @@ void AbsStepper::setCurPosAsJointDeg(double jdeg){
 
 
 
+// // Update absolut current step count when updating [step_count]
+// void AbsStepper::calcStepPulse(void){
+//     DRV8825::calcStepPulse();
+//     // calcStepPulse will always increase step_count, edit our abs_step as well
+//     _abs_cstep += getDirection();      // step_count is always positive
+//     // Serial.print("y");
+
+// }
+
 // Update absolut current step count when updating [step_count]
 void AbsStepper::calcStepPulse(void){
-    DRV8825::calcStepPulse();
-    // calcStepPulse will always increase step_count, edit our abs_step as well
-    _abs_cstep += getDirection();      // step_count is always positive
-    // Serial.print("y");
+    if (steps_remaining <= 0){  // this should not happen, but avoids strange calculations
+        return;
+    }
+    steps_remaining--;
+    step_count++;
+    _abs_cstep += getDirection();      // RANDEL: since step_count is always positive
 
+    if (profile.mode == LINEAR_SPEED){
+        switch (getCurrentState()){
+        case ACCELERATING:
+            if (step_count < steps_to_cruise){
+                step_pulse = step_pulse - (2*step_pulse+rest)/(4*step_count+1);
+                rest = (step_count < steps_to_cruise) ? (2*step_pulse+rest) % (4*step_count+1) : 0;
+            } else {
+                // The series approximates target, set the final value to what it should be instead
+                step_pulse = cruise_step_pulse;
+            }
+            break;
+
+        case DECELERATING:
+            step_pulse = step_pulse - (2*step_pulse+rest)/(-4*steps_remaining+1);
+            rest = (2*step_pulse+rest) % (-4*steps_remaining+1);
+            break;
+
+        default:
+            break; // no speed changes
+        }
+    }
 }
 
 
@@ -134,7 +203,14 @@ void AbsStepper::setJoint2StepperRatio(double s_moved_angle, double j_moved_angl
     stepper2joint_ratio = s_moved_angle/j_moved_angle;
 }
 
-// long AbsStepper::nextAction(void){
-//     DRV8825::nextAction();
+long AbsStepper::nextAction(void){
+    // poll limit switch
+    if(limit_sw_pin != SHRT_MIN){
+        if(digitalRead(limit_sw_pin) == limit_sw_active_state){
+            limitActivatedCB1();
+        }
+    }
+
+    DRV8825::nextAction();
     
-// }
+}

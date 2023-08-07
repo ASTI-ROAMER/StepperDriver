@@ -50,7 +50,7 @@ public:
         }
     }
 
-private:
+protected:
     // calculation remainder to be fed into successive steps to increase accuracy (Atmel DOC8017)
     long rest;
     unsigned long last_action_end = 0;
