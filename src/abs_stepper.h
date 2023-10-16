@@ -4,22 +4,21 @@
 #include "DRV8825.h"
 #include <limits.h>
 
+/**
+ * @brief Absolute positioning and joint wrapper for stepper driver
+ * 
+ * Uses 2 types of limit:
+ *  Soft limits: Required. Implemented by software. Movement will not exceed this unless explicitly commanded.
+ *  Hard limits: Optional. Implemented by limit switches. Triggering the corresponding limit switch will forcefully set the current position the the preset value of the hard limit.
+ * 
+ * 
+ * Terms:
+ *  pos - absolute step position tracked by moving the stepper
+ *  adeg - absolute position in degrees (rotation), the position in degrees using degree per step value
+ *  d_jdeg - joint position in terms of joint degrees (rotation), the position OF THE JOINT in degrees using joint gear ration and degree per step values.
+ *  
+ */
 class AbsStepper : public DRV8825 {
-protected:
-    long _abs_cstep;                        // current step on absolute counts
-    double deg_per_step;              // initialize upon class construction (initialization list)
-    double step_per_deg;
-    uint8_t use_soft_limits=FALSE;          // whether we use _min_soft_astep/_max_soft_astep to limit steps
-    long _min_soft_astep, _max_soft_astep;            // software absolute step count limit (soft limits)
-
-    double joint2stepper_ratio = 1.0;          
-    double stepper2joint_ratio = 1.0;
-
-    
-
-    void calcStepPulse(void) override;      // extend this so we can have absolute position
-
-
 public:
     enum LimitStatus {NORMAL, ERROR};
     enum LimitSWMethod {POLL, INTERRUPT};
@@ -32,47 +31,60 @@ public:
     short limitsw_up_active_state=LOW;         // whether high or low is the trigger signal
     short limitsw_down_active_state=LOW;
 
-    long limitsw_up_reset_astep=10L;                // absolute step value will be this when limit sw is triggered
-    long limitsw_down_reset_astep=0L;
+protected:
+    long _abs_pos;                          // position, the current step on absolute counts
+    double deg_per_step;                    // values relating the step count to rotational position
+    double step_per_deg;
+
+    uint8_t use_soft_limits=FALSE;          // flag for using _min_soft_pos/_max_soft_pos to limit steps
+    long _min_soft_pos, _max_soft_pos;      // software absolute step count limit (soft limits)
+    long _lim_min_hard_pos=0L;
+    long _lim_max_hard_pos=10L;             // absolute step value will be this when limit sw is triggered
+
+    double joint2stepper_ratio = 1.0;       // values for relating adeg to d_jdeg
+    double stepper2joint_ratio = 1.0;
+
+    void calcStepPulse(void) override;      // extend this so we can have absolute position
+
 
 public:
     AbsStepper(short steps, short dir_pin, short step_pin)
-    :DRV8825(steps, dir_pin, step_pin), _abs_cstep(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
+    :DRV8825(steps, dir_pin, step_pin), _abs_pos(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
     {}
 
     AbsStepper(short steps, short dir_pin, short step_pin, short enable_pin)
-    :DRV8825(steps, dir_pin, step_pin, enable_pin), _abs_cstep(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
+    :DRV8825(steps, dir_pin, step_pin, enable_pin), _abs_pos(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
     {}
 
     /*
     * A4988-DRV8825 Compatibility map: MS1-MODE0, MS2-MODE1, MS3-MODE2
     */
     AbsStepper(short steps, short dir_pin, short step_pin, short mode0_pin, short mode1_pin, short mode2_pin)
-    :DRV8825(steps, dir_pin, step_pin, mode0_pin, mode1_pin, mode2_pin), _abs_cstep(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
+    :DRV8825(steps, dir_pin, step_pin, mode0_pin, mode1_pin, mode2_pin), _abs_pos(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
     {}
 
     AbsStepper(short steps, short dir_pin, short step_pin, short enable_pin, short mode0_pin, short mode1_pin, short mode2_pin)
-    :DRV8825(steps, dir_pin, step_pin, enable_pin, mode0_pin, mode1_pin, mode2_pin), _abs_cstep(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
+    :DRV8825(steps, dir_pin, step_pin, enable_pin, mode0_pin, mode1_pin, mode2_pin), _abs_pos(0), deg_per_step(360.0 / motor_steps), step_per_deg(motor_steps / 360.0)
     {}
 
 
     // Limit switch related, activating the limit switch WILL STOP the motor
     void setLimitSwPin(short pin_, long lim_abs_step, LimitSWPinSelect pin_select=LIMIT_UP_PIN, short active_state=LOW, LimitSWMethod method=POLL);    // sets up upper limit switch
     // overload for using double (specified in joint angle, after gear ratio)
-    void setLimitSwPin(short pin_, double jdeg, LimitSWPinSelect pin_select=LIMIT_UP_PIN, short active_state=LOW, LimitSWMethod method=POLL);
-    void setLimitSWAbsStep(long a_step=0L, LimitSWPinSelect pin_select=LIMIT_UP_PIN);
+    void setLimitSwPin(short pin_, double d_jdeg, LimitSWPinSelect pin_select=LIMIT_UP_PIN, short active_state=LOW, LimitSWMethod method=POLL);
+    void setHardLimAsPos(long a_step=0L, LimitSWPinSelect pin_select=LIMIT_UP_PIN);
 
-    void setLimitSwUpPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);        // set limit switch pin
-    void setLimitSwUpPin(short pin_, double jdeg, short active_state=LOW, LimitSWMethod method=POLL); 
-    void setLimitSWUpAbsStep(long a_step=0L);                                                   // set abs step when limit is triggered
-    void setLimitSWUpAbsDeg(double ddeg=0.0);
-    void setLimitSWUpJointDeg(double jdeg=0.0);
+    void setHardLimUpPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);        // set limit switch pin
+    void setHardLimUpPin(short pin_, double d_jdeg, short active_state=LOW, LimitSWMethod method=POLL); 
+    void setHardLimUpAsPos(long a_step=0L);                                                   // set abs step when limit is triggered
+    void setHardLimUpAsAdeg(double d_adeg=0.0);
+    void setHardLimUpAsJdeg(double d_jdeg=0.0);
 
-    void setLimitSwDownPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);
-    void setLimitSwDownPin(short pin_, double jdeg, short active_state=LOW, LimitSWMethod method=POLL);
-    void setLimitSWDownAbsStep(long a_step=0L); 
-    void setLimitSWDownAbsDeg(double ddeg=0.0);
-    void setLimitSWDownJointDeg(double jdeg=0.0);
+    void setHardLimDownPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);
+    void setHardLimDownPin(short pin_, double d_jdeg, short active_state=LOW, LimitSWMethod method=POLL);
+    void setHardLimDownAsPos(long a_step=0L); 
+    void setHardLimSWDownAsAdeg(double d_adeg=0.0);
+    void setHardLimDownAsJdeg(double d_jdeg=0.0);
 
     long limitUpActivatedCB1(void);                             // called when limit is triggered in POLL mode
     long limitDownActivatedCB1(void);
@@ -80,41 +92,41 @@ public:
 
 
     // Resets position WITHOUT MOVING
-    // void setCurPosAsAbsStep();
-    void setCurPosAsAbsStep(long abs_step);       // Sets abs_cstep to given number, default 0
-    void setCurPosAsAbsDeg(double abs_deg);
-    void setCurPosAsJointDeg(double jdeg);
+    // void setCurPosAtPos();
+    void setCurPosAtPos(long abs_step);       // Sets abs_cstep to given number, default 0
+    void setCurPosAtAdeg(double abs_deg);
+    void setCurPosAtJdeg(double d_jdeg);
 
     // absolute movement (non-blocking)
     // By step count:
     // - IFF soft limits are enforced:
     // --exec_on_soft_limit==TRUE: if the desired step exceeds the limit, will CONTINUE to move until limit is reached.
     // --exec_on_soft_limit==FALSE: if the desired step exceeds the limit, will NOT MOVE the motor
-    uint8_t startAbsMove_(long abs_dstep, long time=0, uint8_t exec_on_soft_limit=FALSE);
+    uint8_t startAbsMove_(long d_pos, long time=0, uint8_t exec_on_soft_limit=FALSE);
     // Convinience methods
-    uint8_t startAbsMove(long abs_dstep, long time=0);          // exec_on_soft_limit=FALSE, don't move at all if invalid position
-    uint8_t startAbsMove0(long abs_dstep, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
-    uint8_t startAbsMove1(long abs_dstep, long time=0);         // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
+    uint8_t startAbsMove(long d_pos, long time=0);          // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startAbsMove0(long d_pos, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startAbsMove1(long d_pos, long time=0);         // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
 
     // By degrees:
-    uint8_t startAbsRotate_(double ddeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
+    uint8_t startAbsRotate_(double d_adeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
     // Convinience methods
-    uint8_t startAbsRotate(double ddeg, long time=0);           // startAbsRotate_ with exec_on_soft_limit=FALSE
-    uint8_t startAbsRotate0(double ddeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=FALSE
-    uint8_t startAbsRotate1(double ddeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=TRUE
+    uint8_t startAbsRotate(double d_adeg, long time=0);           // startAbsRotate_ with exec_on_soft_limit=FALSE
+    uint8_t startAbsRotate0(double d_adeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=FALSE
+    uint8_t startAbsRotate1(double d_adeg, long time=0);          // startAbsRotate_ with exec_on_soft_limit=TRUE
 
     // By joint degrees:
-    uint8_t startJointRotate_(double jdeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
+    uint8_t startJointRotate_(double d_jdeg, long time=0, uint8_t exec_on_soft_limit=FALSE);
     // Convinience methods
-    uint8_t startJointRotate(double jdeg, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
-    uint8_t startJointRotate0(double jdeg, long time=0);        // exec_on_soft_limit=FALSE, don't move at all if invalid position
-    uint8_t startJointRotate1(double jdeg, long time=0);        // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
+    uint8_t startJointRotate(double d_jdeg, long time=0);         // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startJointRotate0(double d_jdeg, long time=0);        // exec_on_soft_limit=FALSE, don't move at all if invalid position
+    uint8_t startJointRotate1(double d_jdeg, long time=0);        // exec_on_soft_limit=TRUE, move even if invalid (up to valid position only)
 
 
     // setup absolute step/angle software limits, use_soft_limits_=TRUE will enforce the limits
-    void setAbsStepSoftLimits(long min, long max, uint8_t use_soft_limits_=TRUE);
-    void setAbsDegSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
-    void setJointSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
+    void setSoftLimAsPos(long min, long max, uint8_t use_soft_limits_=TRUE);
+    void setSoftLimAsAdeg(double min, double max, uint8_t use_soft_limits_=TRUE);
+    void setSoftLimAsJdeg(double min, double max, uint8_t use_soft_limits_=TRUE);
 
     /**
      * @brief joint interface - joints may be geared, this takes care of that.
@@ -130,12 +142,12 @@ public:
 
     // convertion functions
     // convert joint angle to absolute stepper angle
-    inline double convertJdeg2Adeg(double jdeg){return (double)(jdeg * stepper2joint_ratio);}
-    inline long convertJdeg2Astep(double jdeg) {return (long)(jdeg * stepper2joint_ratio * step_per_deg);}
-    inline long convertAdeg2Astep(double adeg){return (long)(adeg * step_per_deg);}
+    inline double convertJdeg2Adeg(double d_jdeg){return (double)(d_jdeg * stepper2joint_ratio);}
+    inline long convertJdeg2Pos(double d_jdeg) {return (long)(d_jdeg * stepper2joint_ratio * step_per_deg);}
+    inline long convertAdeg2Pos(double adeg){return (long)(adeg * step_per_deg);}
     inline double convertAdeg2Jdeg(double adeg){return (double)(adeg * joint2stepper_ratio);}
-    inline double convertAstep2Adeg(long astep){return (double)(astep * deg_per_step);}
-    inline double convertAstep2Jdeg(long astep){return (double)(astep * deg_per_step * joint2stepper_ratio);}
+    inline double convertPos2Adeg(long pos){return (double)(pos * deg_per_step);}
+    inline double convertPos2Jdeg(long pos){return (double)(pos * deg_per_step * joint2stepper_ratio);}
     
 
 
@@ -148,12 +160,12 @@ public:
 
 
     // Getters and convinences
-    const long& getAbsCurStep() const {return _abs_cstep;}          //so that _abs_cstep will not be modified
+    const long& getCurPos() const {return _abs_pos;}          //so that _abs_pos will not be modified
     const double& getStepPerDeg() const {return step_per_deg;}
     const double& getDegPerStep() const {return deg_per_step;}
 
-    double getAbsCurDeg() const {return _abs_cstep * deg_per_step;}
-    double getJointCurDeg() const {return _abs_cstep * deg_per_step * joint2stepper_ratio;}
+    double getCurAdeg() const {return _abs_pos * deg_per_step;}
+    double getCurJdeg() const {return _abs_pos * deg_per_step * joint2stepper_ratio;}
 
     void printStats(void);
 
