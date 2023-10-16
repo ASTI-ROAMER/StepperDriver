@@ -9,8 +9,8 @@ protected:
     long _abs_cstep;                        // current step on absolute counts
     double deg_per_step;              // initialize upon class construction (initialization list)
     double step_per_deg;
-    uint8_t use_soft_limits=FALSE;          // whether we use _min_astep/_max_astep to limit steps
-    long _min_astep, _max_astep;            // software absolute step count limit (soft limits)
+    uint8_t use_soft_limits=FALSE;          // whether we use _min_soft_astep/_max_soft_astep to limit steps
+    long _min_soft_astep, _max_soft_astep;            // software absolute step count limit (soft limits)
 
     double joint2stepper_ratio = 1.0;          
     double stepper2joint_ratio = 1.0;
@@ -21,12 +21,19 @@ protected:
 
 
 public:
+    enum LimitStatus {NORMAL, ERROR};
     enum LimitSWMethod {POLL, INTERRUPT};
+    enum LimitSWPinSelect {LIMIT_DOWN_PIN, LIMIT_UP_PIN};
 
     // Limit switch pins
-    short limit_sw_pin=SHRT_MIN;               // assume SHRT_MIN means undefined pin (not used)
-    short limit_sw_active_state=LOW;
-    long limit_sw_reset_astep;
+    short limitsw_up_pin=SHRT_MIN;              // limit switch pin# (arduino)assume SHRT_MIN means undefined pin (not used)
+    short limitsw_down_pin=SHRT_MIN;
+
+    short limitsw_up_active_state=LOW;         // whether high or low is the trigger signal
+    short limitsw_down_active_state=LOW;
+
+    long limitsw_up_reset_astep=10L;                // absolute step value will be this when limit sw is triggered
+    long limitsw_down_reset_astep=0L;
 
 public:
     AbsStepper(short steps, short dir_pin, short step_pin)
@@ -50,12 +57,25 @@ public:
 
 
     // Limit switch related, activating the limit switch WILL STOP the motor
-    void setLimitSWPin(short limit_pin_, short active_state=LOW, LimitSWMethod method=POLL);
-    void setLimitSWAbsStep(long a_step=0L);
-    void setLimitSWAbsDeg(double ddeg=0.0);
-    void setLimitSWJointDeg(double jdeg=0.0);
+    void setLimitSwPin(short pin_, long lim_abs_step, LimitSWPinSelect pin_select=LIMIT_UP_PIN, short active_state=LOW, LimitSWMethod method=POLL);    // sets up upper limit switch
+    // overload for using double (specified in joint angle, after gear ratio)
+    void setLimitSwPin(short pin_, double jdeg, LimitSWPinSelect pin_select=LIMIT_UP_PIN, short active_state=LOW, LimitSWMethod method=POLL);
+    void setLimitSWAbsStep(long a_step=0L, LimitSWPinSelect pin_select=LIMIT_UP_PIN);
 
-    long limitActivatedCB1(void);
+    void setLimitSwUpPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);        // set limit switch pin
+    void setLimitSwUpPin(short pin_, double jdeg, short active_state=LOW, LimitSWMethod method=POLL); 
+    void setLimitSWUpAbsStep(long a_step=0L);                                                   // set abs step when limit is triggered
+    void setLimitSWUpAbsDeg(double ddeg=0.0);
+    void setLimitSWUpJointDeg(double jdeg=0.0);
+
+    void setLimitSwDownPin(short pin_, long lim_abs_step, short active_state=LOW, LimitSWMethod method=POLL);
+    void setLimitSwDownPin(short pin_, double jdeg, short active_state=LOW, LimitSWMethod method=POLL);
+    void setLimitSWDownAbsStep(long a_step=0L); 
+    void setLimitSWDownAbsDeg(double ddeg=0.0);
+    void setLimitSWDownJointDeg(double jdeg=0.0);
+
+    long limitUpActivatedCB1(void);                             // called when limit is triggered in POLL mode
+    long limitDownActivatedCB1(void);
     // long (*_limitCB)(void);                 // function pointer to CB when limit sw is activated (point it to poll/interrupt)
 
 
@@ -96,16 +116,27 @@ public:
     void setAbsDegSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
     void setJointSoftLimits(double min, double max, uint8_t use_soft_limits_=TRUE);
 
-    // joint interface - joints may be geared, this takes care of that
-    // Calculates and sets gearing ratio given a set movement of the stepper motor WRT the joint.
-    // -- joint angle / stepper angle
-    void setJoint2StepperRatio(double s_moved_angle, double j_moved_angle);
+    /**
+     * @brief joint interface - joints may be geared, this takes care of that.
+     * Calculates and sets gearing ratio given a set movement of the stepper motor WRT the joint.
+     * -- joint angle / stepper angle
+     * 
+     * @param j_gear_teeth_count joint gear teeth count OR  can also be the angle movement observed on the stepper side WHEN the joint is moved by a set angle
+     * @param s_gear_teeth_count stepper gear teeth count OR can also be the angle movement observed on the joint side when the stepper is moved by a set angle
+     */
+    void setJoint2StepperRatio(double j_gear_teeth_count, double s_gear_teeth_count);
 
 
 
     // convertion functions
     // convert joint angle to absolute stepper angle
-    double convertJdeg2Adeg(double jdeg){return jdeg * stepper2joint_ratio;}
+    inline double convertJdeg2Adeg(double jdeg){return (double)(jdeg * stepper2joint_ratio);}
+    inline long convertJdeg2Astep(double jdeg) {return (long)(jdeg * stepper2joint_ratio * step_per_deg);}
+    inline long convertAdeg2Astep(double adeg){return (long)(adeg * step_per_deg);}
+    inline double convertAdeg2Jdeg(double adeg){return (double)(adeg * joint2stepper_ratio);}
+    inline double convertAstep2Adeg(long astep){return (double)(astep * deg_per_step);}
+    inline double convertAstep2Jdeg(long astep){return (double)(astep * deg_per_step * joint2stepper_ratio);}
+    
 
 
 
@@ -123,6 +154,8 @@ public:
 
     double getAbsCurDeg() const {return _abs_cstep * deg_per_step;}
     double getJointCurDeg() const {return _abs_cstep * deg_per_step * joint2stepper_ratio;}
+
+    void printStats(void);
 
     
     
