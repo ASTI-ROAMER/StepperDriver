@@ -51,14 +51,14 @@ void AbsStepper::setHardLimAsPos(long lim_pos, LimitSWPinSelect pin_select){
         if(_limitsw_up_pin != SHRT_MIN){                     // there is a uppper limit switch value, so check it first before setting lower limit
             if(lim_pos < _lim_max_hard_pos){            // check if lower limit is lower than upper limit
                 _lim_min_hard_pos = lim_pos;
-                Serial.println("(lim_down < lim_up OK) Set lim down: " + String(_lim_max_hard_pos));
+                // Serial.println("(lim_down < lim_up OK) Set lim down: " + String(_lim_max_hard_pos));
             } else {
                 // error - lower limit is higher than upper limit
                 Serial.println("***** ERROR: Limit switch reset position error.");
             }
         } else{                                             // no upper limit, set up lower limit immediately
             _lim_min_hard_pos = lim_pos;
-            Serial.println("Set lim down DIRECTLY:" + String(_lim_min_hard_pos));
+            // Serial.println("Set lim down DIRECTLY:" + String(_lim_min_hard_pos));
         }
         
     } else{
@@ -66,7 +66,7 @@ void AbsStepper::setHardLimAsPos(long lim_pos, LimitSWPinSelect pin_select){
             if(lim_pos > _lim_min_hard_pos){          // check if upper limit is higher than lower limit
                 // Serial.println("Setting lim up to: " + String(a_step));
                 _lim_max_hard_pos = lim_pos;
-                Serial.println("(lim_down < lim_up OK) Set lim up: " + String(_lim_max_hard_pos));
+                // Serial.println("(lim_down < lim_up OK) Set lim up: " + String(_lim_max_hard_pos));
             } else {
                 // error - upper limit is lower than lower limit
                 Serial.println("***** ERROR: Limit switch reset position error.");
@@ -74,7 +74,7 @@ void AbsStepper::setHardLimAsPos(long lim_pos, LimitSWPinSelect pin_select){
         } else{                                             // no lower limit, set up upper limit immediately
             // Serial.println("Setting lim up to: %l" + String(a_step));
             _lim_max_hard_pos = lim_pos;
-            Serial.println("Set lim up DIRECTLY:" + String(_lim_max_hard_pos));
+            // Serial.println("Set lim up DIRECTLY:" + String(_lim_max_hard_pos));
         }
     }
 }
@@ -340,7 +340,7 @@ void AbsStepper::setJoint2StepperRatio(double j_gear_teeth_count, double s_gear_
         return;
     }
 
-    Serial.println("*** Adjusting limits to NEW joint ratios!");
+    // Serial.println("*** Adjusting limits to NEW joint ratios!");
     // before changing the gear ratios, get old values for limits 1st with old gear ratios
     double temp_jhlim_up = convertPos2Jdeg(_lim_max_hard_pos);
     double temp_jhlim_down = convertPos2Jdeg(_lim_min_hard_pos);
@@ -400,14 +400,15 @@ long AbsStepper::nextAction(void){
 void AbsStepper::printStats(){
     Serial.println("\n****************"
                    "\n_abs_cstep: " + String(_abs_pos) + " (" + String(getCurJdeg()) + "jdeg)" +
+                   "\nmicrosteps: " + String(microsteps) +
                    "\nstepper2joint_ratio: " + String(stepper2joint_ratio) +
                    "\njoint2stepper_ratio: " + String(joint2stepper_ratio) +
                    "\nstep_per_deg: " + String(_step_per_deg) +
                    "\ndeg_per_step: " + String(_deg_per_step) +
                    "\n_lim_min_hard_pos: " + String(_lim_min_hard_pos) + " (" + String(convertPos2Jdeg(_lim_min_hard_pos)) + "jdeg)" +
                    "\n_lim_max_hard_pos: " + String(_lim_max_hard_pos) + " (" + String(convertPos2Jdeg(_lim_max_hard_pos)) + "jdeg)" +
-                   "\n_min_soft_astep: " + String(_min_soft_pos) + " (" + String(convertPos2Jdeg(_min_soft_pos)) + "jdeg)" +
-                   "\n_max_soft_astep: " + String(_max_soft_pos) + " (" + String(convertPos2Jdeg(_max_soft_pos)) + "jdeg)" +
+                   "\n_min_soft_pos: " + String(_min_soft_pos) + " (" + String(convertPos2Jdeg(_min_soft_pos)) + "jdeg)" +
+                   "\n_max_soft_pos: " + String(_max_soft_pos) + " (" + String(convertPos2Jdeg(_max_soft_pos)) + "jdeg)" +
                    "\n****************\n"
                    );
 }

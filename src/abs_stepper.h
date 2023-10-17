@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include "DRV8825.h"
 #include <limits.h>
+#include <math.h>
 
 /**
  * @brief Absolute positioning and joint wrapper for stepper driver
@@ -31,7 +32,7 @@ public:
     // short limitsw_down_active_state=LOW;
 
 protected:
-    long _abs_pos;                          // position, the current step on absolute counts
+    long _abs_pos;                          // position, the current step on absolute STEP counts, DOES NOT take to account MICROSTEPS
     double _deg_per_step;                    // values relating the step count to rotational position
     double _step_per_deg;
 
@@ -68,11 +69,11 @@ public:
     */
     AbsStepper(short steps, short dir_pin, short step_pin, short mode0_pin, short mode1_pin, short mode2_pin)
     :DRV8825(steps, dir_pin, step_pin, mode0_pin, mode1_pin, mode2_pin), _abs_pos(0), _deg_per_step(360.0 / motor_steps), _step_per_deg(motor_steps / 360.0)
-    {}
+    {Serial.println("ABS_STEPPER CALLED");}
 
     AbsStepper(short steps, short dir_pin, short step_pin, short enable_pin, short mode0_pin, short mode1_pin, short mode2_pin)
     :DRV8825(steps, dir_pin, step_pin, enable_pin, mode0_pin, mode1_pin, mode2_pin), _abs_pos(0), _deg_per_step(360.0 / motor_steps), _step_per_deg(motor_steps / 360.0)
-    {}
+    {Serial.println("ABS_STEPPER CALLED");}
 
 
     // Limit switch related, activating the limit switch WILL STOP the motor
@@ -112,7 +113,7 @@ public:
     void setCurPosAtJdeg(double lim_jdeg);
 
     // absolute movement (non-blocking)
-    // By step count:
+    // By step count (microstep multiplier SHOULD BE INCLUDED! 100 steps with 2 microstep setting should have a command of 200.):
     // - IFF soft limits are enforced:
     // --exec_on_soft_limit==TRUE: if the desired step exceeds the limit, will CONTINUE to move until limit is reached.
     // --exec_on_soft_limit==FALSE: if the desired step exceeds the limit, will NOT MOVE the motor
@@ -156,12 +157,12 @@ public:
 
     // convertion functions
     // convert joint angle to absolute stepper angle
-    inline double convertJdeg2Adeg(double lim_jdeg){return (double)(lim_jdeg * stepper2joint_ratio);}
-    inline long convertJdeg2Pos(double lim_jdeg) {return (long)(lim_jdeg * stepper2joint_ratio * _step_per_deg);}
-    inline long convertAdeg2Pos(double adeg){return (long)(adeg * _step_per_deg);}
+    inline double convertJdeg2Adeg(double jdeg){return (double)(jdeg * stepper2joint_ratio);}
+    inline long convertJdeg2Pos(double jdeg) {return (long)round(jdeg * microsteps * stepper2joint_ratio * _step_per_deg);}
+    inline long convertAdeg2Pos(double adeg){return (long)round(adeg * microsteps * _step_per_deg);}
     inline double convertAdeg2Jdeg(double adeg){return (double)(adeg * joint2stepper_ratio);}
-    inline double convertPos2Adeg(long pos){return (double)(pos * _deg_per_step);}
-    inline double convertPos2Jdeg(long pos){return (double)(pos * _deg_per_step * joint2stepper_ratio);}
+    inline double convertPos2Adeg(long pos){return (double)(pos * _deg_per_step / microsteps);}
+    inline double convertPos2Jdeg(long pos){return (double)(pos * _deg_per_step * joint2stepper_ratio / microsteps);}
     
 
 
@@ -175,11 +176,12 @@ public:
 
     // Getters and convinences
     const long& getCurPos() const {return _abs_pos;}          //so that _abs_pos will not be modified
+    const long& getCurPosInStepperSteps() const {return _abs_pos / microsteps;}
     const double& getStepPerDeg() const {return _step_per_deg;}
     const double& getDegPerStep() const {return _deg_per_step;}
 
-    double getCurAdeg() const {return _abs_pos * _deg_per_step;}
-    double getCurJdeg() const {return _abs_pos * _deg_per_step * joint2stepper_ratio;}
+    double getCurAdeg() const {return _abs_pos * _deg_per_step / microsteps;}
+    double getCurJdeg() const {return _abs_pos * _deg_per_step * joint2stepper_ratio / microsteps;}
 
     void printStats(void);
 
