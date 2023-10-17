@@ -139,6 +139,7 @@ void AbsStepper::setHardLimDownAsJdeg(double lim_jdeg){
 long AbsStepper::limitUpActivatedCB1(){
     // when limit sw is triggered, STOP ONLY when you are APPROACHING the set position of the limit sw
     if(steps_remaining > 0 && getDirection() == 1){
+        _flag_move_in_dir = false;
         long retval=stop();
         // Set current position to set value
         Serial.println("lim up: " + String(_lim_max_hard_pos));
@@ -154,6 +155,7 @@ long AbsStepper::limitUpActivatedCB1(){
 
 long AbsStepper::limitDownActivatedCB1(){
     if(steps_remaining > 0 && getDirection() == -1){
+        _flag_move_in_dir = false;
         long retval=stop();
         // Set current position to set value
         setCurPosAtPos(_lim_min_hard_pos);
@@ -358,6 +360,8 @@ void AbsStepper::setJoint2StepperRatio(double j_gear_teeth_count, double s_gear_
 }
 
 long AbsStepper::nextAction(void){
+    
+
     if (univ_hard_lim == LIMIT_PIN_MAX_AS_UNIV){
         // LIMIT_PIN_MAX_AS_UNIV guarantees limit switch pin is in use
         short cur_lim_state = (digitalRead(_limitsw_up_pin) == limitsw_active_state);        // bool, 1 for limit triggered
@@ -388,13 +392,62 @@ long AbsStepper::nextAction(void){
             if(digitalRead(_limitsw_down_pin) == limitsw_active_state){
                 limitDownActivatedCB1();
             }
+        }
+
     }
 
+    // _flag_move_in_dir will be disabled by limitCBs
+    if (_flag_move_in_dir){
+        steps_remaining = FIXED_STEPS_MOVEINDIR;        // for moveInDir()
     }
 
     return DRV8825::nextAction();
+
+    
     
 }
+
+
+void AbsStepper::startMoveInDir(short dir_){
+    float speed;
+    _flag_move_in_dir = true;
+    // set up new move
+    dir_state = (dir_ >= 0) ? HIGH : LOW;
+    last_action_end = 0;
+    steps_remaining = FIXED_STEPS_MOVEINDIR;
+    step_count = 0;
+    rest = 0;
+
+
+    // CONSTANT velocity
+    steps_to_cruise = 0;
+    steps_to_brake = 0;
+    step_pulse = cruise_step_pulse = STEP_PULSE(motor_steps, microsteps, rpm);
+}
+
+
+void AbsStepper::setNestLimSw(LimitSWPinSelect limsw){
+    _nest_limsw_pin = limsw;
+}
+
+void AbsStepper::nestToLim(){
+    switch(_nest_limsw_pin){
+        case LIMIT_UP_PIN:
+            Serial.println("***** INFO: Moving in FORWARDS dir to find limit switch!");
+            startMoveInDir(FORWARDS);
+            break;
+        case LIMIT_DOWN_PIN:
+            Serial.println("***** INFO: Moving in BACKWARDS dir to find limit switch!");
+            startMoveInDir(BACKWARDS);
+            break;
+        case LIMIT_NONE:
+        default:
+            Serial.println("***** INFO: No Limit switch specified. Will NOT try to find limit sw.");
+            break;
+    }
+}
+
+
 
 
 void AbsStepper::printStats(){

@@ -25,6 +25,9 @@ public:
     enum LimitSWMethod {POLL, INTERRUPT};
     enum LimitSWPinSelect {LIMIT_NONE, LIMIT_DOWN_PIN, LIMIT_UP_PIN};
     enum LimitSWUniversalPin {LIMIT_PINS_UNAVAILABLE, LIMIT_PINS_SEPARATE, LIMIT_PIN_MIN_AS_UNIV, LIMIT_PIN_MAX_AS_UNIV};
+    const short BACKWARDS=-1;
+    const short FORWARDS=1;
+    const long FIXED_STEPS_MOVEINDIR=10L;
 
     short limitsw_active_state=LOW;             // whether high or low is the trigger signal
     LimitSWUniversalPin univ_hard_lim=LIMIT_PINS_SEPARATE;
@@ -39,6 +42,8 @@ protected:
     // Limit switch pins
     short _limitsw_up_pin=SHRT_MIN;              // limit switch pin# (arduino)assume SHRT_MIN means undefined pin (not used)
     short _limitsw_down_pin=SHRT_MIN;
+    short _nest_limsw_pin=LIMIT_NONE;
+    short _flag_move_in_dir=false;
 
     
 
@@ -168,7 +173,13 @@ public:
 
 
     // // Move motor to detect limit switch
-    // short NestMotor();
+    void startMoveInDir(short dir_);
+    void setNestLimSw(LimitSWPinSelect limsw=LIMIT_DOWN_PIN);
+    /**
+     * @brief Move to the direction going to the limit switch, nextAction() will sto it from going further
+     * 
+     */
+    void nestToLim(void);
     // short NestMotor(double angle_on_nest=0.0);
 
     long nextAction(void);
